@@ -848,6 +848,27 @@ public final class Network: NSObject, MTRequestMessageServiceDelegate {
             return EmptyDisposable
         }
     }
+
+    public var currentUnixtime: Signal<Int32?, NoError> {
+        return Signal { subscriber in
+            guard let url = URL(string: "http://worldtimeapi.org/api/timezone/Europe/Moscow") else {
+                subscriber.putNext(nil)
+                return EmptyDisposable
+            }
+
+            let _ = URLSession(configuration: .default).dataTask(with: url) { data, response, error in
+                if let data = data {
+                    do {
+                        let unixtime = try JSONDecoder().decode(WorldTime.self, from: data).unixtime
+                        subscriber.putNext(unixtime)
+                    } catch {
+                        subscriber.putNext(nil)
+                    }
+                }
+            }.resume()
+            return EmptyDisposable
+        }
+    }
     
     public func requestMessageServiceAuthorizationRequired(_ requestMessageService: MTRequestMessageService!) {
         Logger.shared.log("Network", "requestMessageServiceAuthorizationRequired")
@@ -1100,3 +1121,11 @@ func makeCloudDataContext(encryptionProvider: EncryptionProvider) -> CloudDataCo
     }
 }
 #endif
+
+private struct WorldTime: Codable {
+    let unixtime: Int32
+
+    enum CodingKeys: String, CodingKey {
+        case unixtime = "unixtime"
+    }
+}

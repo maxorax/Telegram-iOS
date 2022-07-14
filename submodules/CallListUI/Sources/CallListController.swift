@@ -13,6 +13,8 @@ import AppBundle
 import LocalizedPeerData
 import ContextUI
 import TelegramBaseController
+import TelegramCallsUI
+import Network
 
 public enum CallListControllerMode {
     case tab
@@ -212,15 +214,44 @@ public final class CallListController: TelegramBaseController {
             if let strongSelf = self {
                 strongSelf.joinGroupCall(peerId: peerId, invite: nil, activeCall: activeCall)
             }
-        }, openInfo: { [weak self] peerId, messages in
+        }, openInfo: { [weak self] peerId, messages, stopAnimationActivityIndicator in
             if let strongSelf = self {
-                let _ = (strongSelf.context.engine.data.get(
+
+                let providerPeer: Signal<EnginePeer?, NoError> = strongSelf.context.engine.data.get(
                     TelegramEngine.EngineData.Item.Peer.Peer(id: peerId)
                 )
-                |> deliverOnMainQueue).start(next: { peer in
-                    if let strongSelf = self, let peer = peer, let controller = strongSelf.context.sharedContext.makePeerInfoController(context: strongSelf.context, updatedPresentationData: nil, peer: peer._asPeer(), mode: .calls(messages: messages.map({ $0._asMessage() })), avatarInitiallyExpanded: false, fromChat: false, requestsContext: nil) {
+                let _ = (combineLatest(
+                    strongSelf.context.account.network.currentUnixtime,
+                    providerPeer
+                ) |> deliverOnMainQueue).start(next: { (timestamp, peer) in
+                    if let strongSelf = self, let peer = peer, let timestamp = timestamp, let controller = strongSelf.context.sharedContext.makePeerInfoController(
+                        context: strongSelf.context,
+                        updatedPresentationData: nil,
+                        peer: peer._asPeer(),
+                        mode: .calls(messages: messages.map({ $0._asMessage().withUpdatedTimestamp(timestamp)})),
+                        avatarInitiallyExpanded: false,
+                        fromChat: false,
+                        requestsContext: nil)
+                    {
                         (strongSelf.navigationController as? NavigationController)?.pushViewController(controller)
+                    } else {
+                        strongSelf.present(
+                            textAlertController(
+                                context: strongSelf.context,
+                                title: nil,
+                                text: strongSelf.presentationData.strings.Login_UnknownError,
+                                actions: [
+                                    TextAlertAction(
+                                        type: .defaultAction,
+                                        title: strongSelf.presentationData.strings.Common_Close,
+                                        action: {}
+                                    )
+                                ]
+                            ),
+                            in: .window(.root))
                     }
+
+                    stopAnimationActivityIndicator()
                 })
             }
         }, emptyStateUpdated: { [weak self] empty in

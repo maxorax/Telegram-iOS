@@ -62,12 +62,12 @@ private extension EngineCallList.Item {
 final class CallListNodeInteraction {
     let setMessageIdWithRevealedOptions: (EngineMessage.Id?, EngineMessage.Id?) -> Void
     let call: (EnginePeer.Id, Bool) -> Void
-    let openInfo: (EnginePeer.Id, [EngineMessage]) -> Void
+    let openInfo: (EnginePeer.Id, [EngineMessage], @escaping () -> Void) -> Void
     let delete: ([EngineMessage.Id]) -> Void
     let updateShowCallsTab: (Bool) -> Void
     let openGroupCall: (EnginePeer.Id) -> Void
-    
-    init(setMessageIdWithRevealedOptions: @escaping (EngineMessage.Id?, EngineMessage.Id?) -> Void, call: @escaping (EnginePeer.Id, Bool) -> Void, openInfo: @escaping (EnginePeer.Id, [EngineMessage]) -> Void, delete: @escaping ([EngineMessage.Id]) -> Void, updateShowCallsTab: @escaping (Bool) -> Void, openGroupCall: @escaping (EnginePeer.Id) -> Void) {
+
+    init(setMessageIdWithRevealedOptions: @escaping (EngineMessage.Id?, EngineMessage.Id?) -> Void, call: @escaping (EnginePeer.Id, Bool) -> Void, openInfo: @escaping (EnginePeer.Id, [EngineMessage], @escaping () -> Void) -> Void, delete: @escaping ([EngineMessage.Id]) -> Void, updateShowCallsTab: @escaping (Bool) -> Void, openGroupCall: @escaping (EnginePeer.Id) -> Void) {
         self.setMessageIdWithRevealedOptions = setMessageIdWithRevealedOptions
         self.call = call
         self.openInfo = openInfo
@@ -206,10 +206,10 @@ final class CallListControllerNode: ASDisplayNode {
     private let emptyButtonNode: HighlightTrackingButtonNode
     private let emptyButtonIconNode: ASImageNode
     private let emptyButtonTextNode: ImmediateTextNode
-    
+
     private let call: (EnginePeer.Id, Bool) -> Void
     private let joinGroupCall: (EnginePeer.Id, EngineGroupCallDescription) -> Void
-    private let openInfo: (EnginePeer.Id, [EngineMessage]) -> Void
+    private let openInfo: (EnginePeer.Id, [EngineMessage], @escaping() -> Void) -> Void
     private let emptyStateUpdated: (Bool) -> Void
     
     private let emptyStatePromise = Promise<Bool>()
@@ -219,7 +219,7 @@ final class CallListControllerNode: ASDisplayNode {
     
     private var previousContentOffset: ListViewVisibleContentOffset?
     
-    init(controller: CallListController, context: AccountContext, mode: CallListControllerMode, presentationData: PresentationData, call: @escaping (EnginePeer.Id, Bool) -> Void, joinGroupCall: @escaping (EnginePeer.Id, EngineGroupCallDescription) -> Void, openInfo: @escaping (EnginePeer.Id, [EngineMessage]) -> Void, emptyStateUpdated: @escaping (Bool) -> Void) {
+    init(controller: CallListController, context: AccountContext, mode: CallListControllerMode, presentationData: PresentationData, call: @escaping (EnginePeer.Id, Bool) -> Void, joinGroupCall: @escaping (EnginePeer.Id, EngineGroupCallDescription) -> Void, openInfo: @escaping (EnginePeer.Id, [EngineMessage], @escaping () -> Void) -> Void, emptyStateUpdated: @escaping (Bool) -> Void) {
         self.controller = controller
         self.context = context
         self.mode = mode
@@ -285,7 +285,7 @@ final class CallListControllerNode: ASDisplayNode {
                 self.backgroundColor = presentationData.theme.list.blocksBackgroundColor
                 self.listNode.backgroundColor = presentationData.theme.list.blocksBackgroundColor
         }
-        
+
         self.emptyAnimationNode.setup(source: AnimatedStickerNodeLocalFileSource(name: "CallsPlaceholder"), width: 256, height: 256, playbackMode: .loop, mode: .direct(cachePathPrefix: nil))
         self.emptyAnimationSize = CGSize(width: 148.0, height: 148.0)
         
@@ -320,8 +320,8 @@ final class CallListControllerNode: ASDisplayNode {
             }
         }, call: { [weak self] peerId, isVideo in
             self?.call(peerId, isVideo)
-        }, openInfo: { [weak self] peerId, messages in
-            self?.openInfo(peerId, messages)
+        }, openInfo: { [weak self] peerId, messages, stopAnimationActivityIndicator in
+            self?.openInfo(peerId, messages, stopAnimationActivityIndicator)
         }, delete: { [weak self] messageIds in
             guard let peerId = messageIds.first?.peerId else {
                 return
@@ -645,7 +645,7 @@ final class CallListControllerNode: ASDisplayNode {
             }
         }
     }
-    
+
     deinit {
         self.callListDisposable.dispose()
         self.emptyStateDisposable.dispose()

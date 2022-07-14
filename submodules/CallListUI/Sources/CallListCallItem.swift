@@ -11,6 +11,7 @@ import AvatarNode
 import TelegramStringFormatting
 import AccountContext
 import ChatListSearchItemHeader
+import ActivityIndicator
 
 private func callDurationString(strings: PresentationStrings, duration: Int32) -> String {
     if duration < 60 {
@@ -202,6 +203,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
     private let dateNode: TextNode
     private let typeIconNode: ASImageNode
     private let infoButtonNode: HighlightableButtonNode
+    private var activityIndicator: ActivityIndicator
     
     var editableControlNode: ItemListEditableControlNode?
     
@@ -238,10 +240,11 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
         self.typeIconNode.isLayerBacked = true
         self.typeIconNode.displayWithoutProcessing = true
         self.typeIconNode.displaysAsynchronously = false
-        
         self.infoButtonNode = HighlightableButtonNode()
         self.infoButtonNode.hitTestSlop = UIEdgeInsets(top: -6.0, left: -6.0, bottom: -6.0, right: -10.0)
-        
+        self.activityIndicator = ActivityIndicator(type: .custom(.systemBlue, 20, 1, true))
+        self.activityIndicator.isHidden = true
+
         self.accessibilityArea = AccessibilityAreaNode()
         
         super.init(layerBacked: false, dynamicBounce: false, rotated: false, seeThrough: false)
@@ -255,6 +258,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
         self.containerNode.addSubnode(self.dateNode)
         self.containerNode.addSubnode(self.infoButtonNode)
         self.addSubnode(self.accessibilityArea)
+        self.containerNode.addSubnode(self.activityIndicator)
         
         self.infoButtonNode.addTarget(self, action: #selector(self.infoPressed), forControlEvents: .touchUpInside)
         
@@ -273,6 +277,16 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
             item.interaction.call(item.topMessage.id.peerId, isVideo)
             return true
         }
+    }
+
+    func startAnimationActivityIndicator() {
+        self.infoButtonNode.isHidden = true
+        self.activityIndicator.isHidden = false
+    }
+
+    func stopAnimationActivityIndicator() {
+        self.infoButtonNode.isHidden = false
+        self.activityIndicator.isHidden = true
     }
     
     override func layoutForParams(_ params: ListViewItemLayoutParams, item: ListViewItem, previousItem: ListViewItem?, nextItem: ListViewItem?) {
@@ -507,7 +521,6 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
             let outgoingVoiceIcon = PresentationResourcesCallList.outgoingIcon(item.presentationData.theme)
             let outgoingVideoIcon = PresentationResourcesCallList.outgoingVideoIcon(item.presentationData.theme)
             let infoIcon = PresentationResourcesCallList.infoButton(item.presentationData.theme)
-            
             let outgoingIcon = isVideo ? outgoingVideoIcon : outgoingVoiceIcon
             
             let contentSize = nodeLayout.contentSize
@@ -675,6 +688,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
                                     strongSelf.infoButtonNode.setImage(infoIcon, for: [])
                                 }
                                 transition.updateFrameAdditive(node: strongSelf.infoButtonNode, frame: CGRect(origin: CGPoint(x: revealOffset + params.width - infoIconRightInset - infoIcon.size.width, y: floor((nodeLayout.contentSize.height - infoIcon.size.height) / 2.0)), size: infoIcon.size))
+                                transition.updateFrameAdditive(node: strongSelf.activityIndicator, frame: CGRect(origin: CGPoint(x: revealOffset + params.width - infoIconRightInset - infoIcon.size.width, y: floor((nodeLayout.contentSize.height - infoIcon.size.height) / 2.0)), size: infoIcon.size))
                             }
                             transition.updateAlpha(node: strongSelf.infoButtonNode, alpha: item.editing ? 0.0 : 1.0)
                             
@@ -690,7 +704,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
                             strongSelf.accessibilityArea.frame = CGRect(origin: CGPoint(), size: nodeLayout.contentSize)
                             
                             strongSelf.infoButtonNode.accessibilityLabel = item.presentationData.strings.Conversation_Info
-                            
+
                             strongSelf.view.accessibilityCustomActions = [UIAccessibilityCustomAction(name: item.presentationData.strings.Common_Delete, target: strongSelf, selector: #selector(strongSelf.performLocalAccessibilityCustomAction(_:)))]
                             
                             strongSelf.setRevealOptions((left: [], right: [ItemListRevealOption(key: 0, title: item.presentationData.strings.Common_Delete, icon: .none, color: item.presentationData.theme.list.itemDisclosureActions.destructive.fillColor, textColor: item.presentationData.theme.list.itemDisclosureActions.destructive.foregroundColor)]))
@@ -726,8 +740,9 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
     }
     
     @objc func infoPressed() {
+        startAnimationActivityIndicator()
         if let item = self.layoutParams?.0 {
-            item.interaction.openInfo(item.topMessage.id.peerId, item.messages)
+            item.interaction.openInfo(item.topMessage.id.peerId, item.messages, stopAnimationActivityIndicator)
         }
     }
     
@@ -782,6 +797,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
             transition.updateFrameAdditive(node: self.typeIconNode, frame: CGRect(origin: CGPoint(x: revealOffset + leftInset - 81.0, y: self.typeIconNode.frame.minY), size: self.typeIconNode.bounds.size))
             
             transition.updateFrameAdditive(node: self.infoButtonNode, frame: CGRect(origin: CGPoint(x: revealOffset + self.bounds.size.width - infoIconRightInset - self.infoButtonNode.bounds.width, y: self.infoButtonNode.frame.minY), size: self.infoButtonNode.bounds.size))
+            transition.updateFrameAdditive(node: self.activityIndicator, frame: CGRect(origin: CGPoint(x: revealOffset + self.bounds.size.width - infoIconRightInset - self.infoButtonNode.bounds.width, y: self.infoButtonNode.frame.minY), size: self.infoButtonNode.bounds.size))
         }
     }
 
